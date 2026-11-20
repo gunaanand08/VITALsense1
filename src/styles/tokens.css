@@ -1,0 +1,51 @@
+@theme {
+  /* Surfaces — pure black canvas, barely-different blacks for depth.
+     Depth comes from photography and hairlines here, never from elevation. */
+  --color-base: #000000;
+  --color-surface: #0b0b0b;
+  --color-surface-2: #141414;
+  --color-elevated: #1f1f1f;
+  --color-border: #262626;
+  --color-border-strong: #3a3a3a;
+
+  /* Text */
+  --color-text: #ffffff;
+  --color-text-muted: #cccccc;
+  --color-text-dim: #8a8a8a;
+
+  /* The system is monochrome. "Accent" is white — emphasis comes from size and
+     tracking, not colour. Ice-blue is the single chromatic token, reserved for
+     links and the live trace. */
+  --color-accent: #ffffff;
+  --color-accent-soft: #c3d9f3;
+  --color-accent-ink: #000000;
+
+  /* Status (technical, never diagnostic) — desaturated so they never read as
+     brand colour and never as a health verdict. */
+  --color-good: #5fa657;
+  --color-warn: #d4a017;
+  --color-danger: #bf5b52;
+  --color-idle: #9fb0c2;
+
+  /* Typography — the three-family split is the brand voice.
+     Display: headlines only. Serif: running body copy. Mono: labels, buttons,
+     numbers, captions. */
+  --font-display: 'Saira Condensed', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'EB Garamond', Garamond, 'Times New Roman', serif;
+  --font-serif: 'EB Garamond', Garamond, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+  /* Radii — binary: square for everything, pill for buttons only. */
+  --radius-chip: 0px;
+  --radius-control: 0px;
+  --radius-panel: 0px;
+  --radius-dialog: 0px;
+  --radius-pill: 9999px;
+
+  /* Motion */
+  --ease-enter: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-pulse: 320ms;
+}
