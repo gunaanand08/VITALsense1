@@ -51,6 +51,17 @@ Everything below is true of this repository as delivered. Nothing here is aspira
 - mDNS discovery of the ESP32 is not implemented in the firmware, so the discovery list is usually
   populated from already-connected devices.
 - No authentication on the bridge — it is a localhost/LAN development helper. Do not expose it.
+- In hosted mode the ECG batches are **world-readable**. `supabase/schema.sql` grants the publishable
+  key `SELECT` on `ecg_devices` and `ecg_batches` and defines no write policy, so anyone holding the
+  project URL can read whatever a device published. That suits a public educational demo, not
+  private traces; put the project behind auth before publishing anything sensitive.
+- The Supabase transport adds latency the bridge path does not have (Realtime delivery, plus the
+  backlog query on connect). No compensation is attempted: sample timing still comes from the device
+  clock, and `received_at` is a transport metric only.
+- `npm run gateway` must run on a machine that can reach the bridge and the internet. If it stops, the
+  dashboard returns to `waiting` after 3.5 s of silence and keeps its last trace.
+- Sessions are per browser profile in both transports, so a Vercel deployment cannot show another
+  visitor's recordings.
 - Recordings live in one browser profile; there is no sync, backup or export-all.
 - CSV export of a very long session produces a large file (≈70 bytes/sample); it is not chunked.
 - The 3D heart is a user-supplied **artist's anatomical scan** (`3d heart/`, converted to

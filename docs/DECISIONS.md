@@ -190,3 +190,26 @@ matters more than an exact match. Bundling keeps the app offline-first (no runti
 **Why.** The new react-hooks rules encode real cascading-render problems; suppressing them would hide
 issues the deadline cannot afford to rediscover later.
 **Cost.** Slightly more verbose effects with cancellation flags.
+
+## D-20 — Supabase is the hosted transport; recordings stay browser-local
+
+**Decision.** When `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are present,
+`SupabaseEcgDataSource` (`src/data/supabaseSource.ts`) replaces `Esp32DataSource` in hardware mode: it
+hydrates the newest 40 rows of `public.ecg_batches`, then follows the table through Supabase Realtime,
+normalising every row through the same `parseBatchMessage` validator the bridge uses. Rows are written
+by `scripts/cloud-gateway.mjs`, which forwards the local bridge's batches with a server-side secret
+key, because the ESP32 firmware speaks the documented WebSocket protocol and cannot hold a secret.
+Sessions, settings and exports remain in IndexedDB/localStorage, unchanged.
+**Why.** The dashboard had to run on Vercel, where no local Fastify bridge exists. Keeping the batch
+contract identical leaves the engine, detector, quality scoring and every page untouched, and a plain
+checkout still runs with zero configuration. Read-only RLS matters because the repository is public:
+the publishable key ships in the bundle, so it must not be a write path. `vercel.json` adds the SPA
+rewrite that deep links need on a static host.
+**Cost.** Realtime is a second moving part — its own latency, a project that can be paused, and a
+publication that must be added by hand if `schema.sql` is not run. The source therefore treats 3.5 s
+of silence as `waiting`, dedupes backlog/realtime overlap by row id, and reconnects with bounded
+backoff instead of spinning. Device `sequence` resets on reconnect, so a lower number is accepted as
+a new connection rather than dropped — unlike the bridge, whose socket also reconnects. Recordings stay
+per browser, so sharing session history between devices would need accounts and a second table,
+deliberately out of scope. A 500 Hz stream accumulates in Postgres until `trim_ecg_batches()` is
+scheduled.

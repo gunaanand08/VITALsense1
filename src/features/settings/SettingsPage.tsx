@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Cable, Cpu, Gauge, PlugZap, Radar, RefreshCw, Save, Trash2, Waves } from 'lucide-react';
+import { Cable, Cloud, Cpu, Gauge, PlugZap, Radar, RefreshCw, Save, Trash2, Waves } from 'lucide-react';
 import { Badge, Button, IconButton, InlineCode, Panel, PanelHeader, Stat } from '../../components/ui/primitives';
 import { NumberInput, Select, Slider, TextInput, Toggle } from '../../components/ui/controls';
 import { SIMULATION_PRESETS } from '../../data/simulationSource';
+import { ECG_DEVICES_TABLE } from '../../data/supabaseSource';
+import { isSupabaseConfigured, supabase, supabaseProjectUrl } from '../../lib/supabase';
 import { useAppStore } from '../../state/store';
 import { storageEstimate } from '../../storage/db';
 import { formatBytes, formatNumber } from '../../utils/format';
@@ -54,6 +56,7 @@ export function SettingsPage() {
   const [discovering, setDiscovering] = useState(false);
   const [known, setKnown] = useState<DiscoveredDevice[]>(() => loadKnownDevices());
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
+  const [cloudTesting, setCloudTesting] = useState(false);
 
   useEffect(() => {
     void storageEstimate().then(setStorage);
@@ -92,6 +95,28 @@ export function SettingsPage() {
       setTesting(false);
     }
   }, [httpBase, pushToast]);
+
+  const testCloud = useCallback(async () => {
+    if (!supabase) return;
+    setCloudTesting(true);
+    try {
+      // A head-only count exercises the key, the URL and the RLS policy without
+      // pulling any sample data into the browser.
+      const { error, count } = await supabase.from(ECG_DEVICES_TABLE).select('device_id', { count: 'exact', head: true });
+      if (error) throw new Error(error.message);
+      setHealth({ ok: true, detail: `Supabase reachable · ${count ?? 0} known device(s)` });
+      pushToast({ tone: 'success', title: 'Supabase reachable', message: supabaseProjectUrl });
+    } catch (error) {
+      setHealth({ ok: false, detail: `Supabase unreachable: ${String(error)}` });
+      pushToast({
+        tone: 'danger',
+        title: 'Supabase unreachable',
+        message: 'Check the project URL, the key, and that supabase/schema.sql has been run.',
+      });
+    } finally {
+      setCloudTesting(false);
+    }
+  }, [pushToast]);
 
   const discover = useCallback(async () => {
     setDiscovering(true);
@@ -149,10 +174,49 @@ export function SettingsPage() {
                 >
                   <span className="block font-mono text-[10px] uppercase tracking-[0.18em]">{option}</span>
                   <span className="mt-0.5 block text-[10.5px] leading-snug text-text-dim">
-                    {option === 'simulation' ? 'Synthetic ECG, no hardware needed' : 'ESP32 + AD8232 via local bridge'}
+                    {option === 'simulation'
+                      ? 'Synthetic ECG, no hardware needed'
+                      : isSupabaseConfigured
+                        ? 'ESP32 + AD8232 via Supabase'
+                        : 'ESP32 + AD8232 via local bridge'}
                   </span>
                 </button>
               ))}
+            </div>
+
+            <div className="rounded-none border border-border p-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-text-muted">Hardware transport</span>
+                <Badge tone={isSupabaseConfigured ? 'good' : 'neutral'} dot>
+                  {isSupabaseConfigured ? 'supabase' : 'local bridge'}
+                </Badge>
+              </div>
+              <p className="mt-1.5 text-[10.5px] leading-relaxed text-text-dim">
+                {isSupabaseConfigured ? (
+                  <>
+                    Batches stream from <InlineCode>{supabaseProjectUrl}</InlineCode> over Realtime, so a hosted build
+                    needs no local server. They appear once a device publishes through{' '}
+                    <InlineCode>npm run gateway</InlineCode>; until then the trace waits rather than inventing samples.
+                  </>
+                ) : (
+                  <>
+                    No cloud project configured, so hardware mode uses the local bridge below. Add{' '}
+                    <InlineCode>VITE_SUPABASE_URL</InlineCode> and <InlineCode>VITE_SUPABASE_PUBLISHABLE_KEY</InlineCode>{' '}
+                    to stream from Supabase on a hosted build.
+                  </>
+                )}
+              </p>
+              {isSupabaseConfigured && (
+                <Button
+                  size="sm"
+                  className="mt-2"
+                  icon={<Cloud size={12} aria-hidden />}
+                  onClick={() => void testCloud()}
+                  disabled={cloudTesting}
+                >
+                  {cloudTesting ? 'Testing…' : 'Test cloud connection'}
+                </Button>
+              )}
             </div>
 
             <div className="rounded-none border border-border p-2.5">
@@ -206,8 +270,9 @@ export function SettingsPage() {
                 </Button>
               </div>
               <p className="mt-1 text-[10.5px] text-text-dim">
-                Default <InlineCode>{`ws://${window.location.host}/ws`}</InlineCode> works through the Vite proxy. With
-                the production build, point this at the bridge directly, e.g. <InlineCode>ws://127.0.0.1:8787/ws</InlineCode>.
+                Used only when no cloud project is configured. Default{' '}
+                <InlineCode>{`ws://${window.location.host}/ws`}</InlineCode> works through the Vite proxy; a production
+                build must point at the bridge directly, e.g. <InlineCode>ws://127.0.0.1:8787/ws</InlineCode>.
               </p>
             </div>
 

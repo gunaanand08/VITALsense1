@@ -33,7 +33,8 @@ documented ESP32 + AD8232 path from electrode to browser.
 - **Frontend:** React 19.3, TypeScript 6.0, Vite 8, Tailwind CSS 4 (CSS-first `@theme` tokens)
 - **3D:** three.js 0.187 + @react-three/fiber 9 + drei (anatomical GLB with embedded PBR maps, local Lightformer environment)
 - **State / UI:** zustand, motion, lucide-react, custom canvas ECG renderer
-- **Backend:** Fastify 5 + @fastify/websocket, `ws`, bonjour-service (mDNS), tsx
+- **Backend:** Fastify 5 + @fastify/websocket, `ws`, bonjour-service (mDNS), tsx — optional once Supabase is configured
+- **Cloud:** Supabase Postgres + Realtime via `@supabase/supabase-js` 2.119.2 (hosted transport; recordings stay in IndexedDB)
 - **Storage / reports:** IndexedDB via `idb`, jsPDF
 - **Testing:** Vitest, jsdom, React Testing Library, real-browser visual verification
 
@@ -76,6 +77,27 @@ npm run build      # tsc --noEmit && vite build  → dist/
 npm run preview    # serve dist/ on port 4173
 ```
 
+## Hosted mode (Supabase + Vercel)
+
+A deployment has no local bridge, so hardware mode reads the device stream from Supabase instead.
+Simulation mode and recording work with no configuration at all.
+
+1. Create a Supabase project, open the SQL Editor and run [`supabase/schema.sql`](supabase/schema.sql).
+   It creates `ecg_devices` and `ecg_batches`, grants the publishable key read-only access through
+   RLS, and adds `ecg_batches` to the `supabase_realtime` publication.
+2. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` and
+   `VITE_SUPABASE_PUBLISHABLE_KEY`. On Vercel, set the same two variables for the Production and
+   Preview environments.
+3. Forward the board's batches into Postgres from a machine that can see it: `npm run gateway`. It
+   reads `.env`, needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY`, and is the only writer — the secret
+   key bypasses RLS and must never reach the browser.
+4. Select **hardware** in Device Settings. *Hardware transport* shows `supabase`, and **Test cloud
+   connection** verifies the URL, key and policies.
+
+Without a configured project the app falls back to the local bridge (`npm run server`). A cloud
+stream that goes quiet returns to `waiting` and keeps its last trace rather than pretending samples
+are arriving. `vercel.json` adds the SPA rewrite so deep links resolve on a static deployment.
+
 ## Testing
 
 ```bash
@@ -102,6 +124,7 @@ drives the engine with a simulated device stream.
 
 ```
 AD8232 (single lead) → ESP32 ADC (timer-sampled) → Wi-Fi → local bridge → WebSocket → browser
+                                                          └→ gateway → Supabase Realtime → browser (hosted)
 ```
 
 1. Flash `firmware/cardiopulse-esp32/` (copy `config.example.h` → `config.h`, set Wi-Fi + bridge host).

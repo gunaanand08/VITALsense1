@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { DEFAULT_SIM_CONFIG } from '../data/ecgSynthesizer';
 import { Esp32DataSource } from '../data/esp32Source';
 import { SimulationDataSource } from '../data/simulationSource';
+import { SupabaseEcgDataSource } from '../data/supabaseSource';
+import { supabase, supabaseProjectUrl } from '../lib/supabase';
 import { ecgEngine } from '../engine/ecgEngine';
 import { DEFAULT_FILTERS, type FilterOptions } from '../signal/filterChain';
 import { newSessionId, saveSession } from '../storage/db';
@@ -139,6 +141,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (mode === 'simulation') {
         const source = new SimulationDataSource(get().settings.sim);
         activeSource = source;
+      } else if (supabase) {
+        // A hosted build has no bridge to reach, so hardware mode follows the
+        // cloud stream instead. Same batch contract, different transport.
+        activeSource = new SupabaseEcgDataSource({ client: supabase });
       } else {
         const source = new Esp32DataSource({ url: get().settings.bridgeUrl });
         activeSource = source;
@@ -148,11 +154,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       ecgEngine.setFilters(get().settings.filters);
       get().pushToast({
         tone: 'info',
-        title: mode === 'simulation' ? 'Simulation mode active' : 'Connecting to hardware bridge',
+        title:
+          mode === 'simulation'
+            ? 'Simulation mode active'
+            : supabase
+              ? 'Connecting to Supabase'
+              : 'Connecting to hardware bridge',
         message:
           mode === 'simulation'
             ? 'All readings are synthetic. They are not measurements from a person.'
-            : get().settings.bridgeUrl,
+            : supabase
+              ? `${supabaseProjectUrl} · waiting for a device to publish`
+              : get().settings.bridgeUrl,
       });
     } catch (error) {
       get().pushToast({ tone: 'danger', title: 'Could not start source', message: String(error) });

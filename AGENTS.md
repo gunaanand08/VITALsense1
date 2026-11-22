@@ -30,8 +30,12 @@ clinical, or certified.
 6. **Simulation is labelled.** Any UI surface showing simulated values must carry a visible
    `SIMULATION` marker. Simulated and hardware data must never be merged, averaged, or persisted
    as if identical.
-7. **Storage is local.** IndexedDB only. No telemetry, no accounts, no third-party uploads, no
-   external API keys.
+7. **Recordings are local; the live transport may be cloud.** Sessions and settings stay in
+   IndexedDB/localStorage — no accounts, and stored sessions are never uploaded. The live ECG
+   transport has two interchangeable implementations behind `DataSource`: the local bridge
+   (`server/`) and Supabase (`src/data/supabaseSource.ts`). Only device batches reach Supabase, the
+   browser holds a read-only publishable key, and the write key stays with the gateway
+   (`scripts/cloud-gateway.mjs`). Nothing downstream may care which transport is in use.
 8. **The backend is a bridge, not a brain.** It validates and forwards device batches. It performs
    no signal processing and stores nothing on disk.
 
@@ -77,6 +81,7 @@ npm run test         # vitest run
 npm run build        # typecheck + production bundle
 npm run preview      # serve the production build
 npm run fake:device  # scripted ESP32 stand-in for protocol testing
+npm run gateway      # forward bridge batches to Supabase (SUPABASE_SECRET_KEY in .env)
 ```
 
 ## 6. Safety requirements

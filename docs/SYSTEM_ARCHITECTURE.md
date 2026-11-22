@@ -8,6 +8,15 @@ AD8232 ──analog──▶ ESP32 ADC ──Wi-Fi/WSS──▶ local bridge (No
                                           mDNS / UDP discovery
 ```
 
+Hosted deployment (no local server reachable from the browser):
+
+```
+AD8232 ──analog──▶ ESP32 ADC ──Wi-Fi──▶ local bridge ──WS──▶ gateway ──HTTPS──▶ Supabase Postgres
+                                                                                    │ Realtime
+                                                                                    ▼
+                                                                             browser (React)
+```
+
 The browser never scans the LAN and never talks to the device directly; the local bridge owns device
 connectivity. Without a device, `SimulationDataSource` feeds the same downstream pipeline, so the UI
 has no hardware dependency.
@@ -19,12 +28,16 @@ flowchart TB
   subgraph Sources
     SIM[SimulationDataSource]
     ESP[Esp32DataSource<br/>WS client + reconnect]
+    CLD[SupabaseEcgDataSource<br/>Realtime subscription]
     DEV[ESP32 firmware]
   end
   DEV -->|ws batch protocol| BR[Bridge: Fastify + ws]
   BR -->|broadcast batches + status| ESP
+  BR -->|npm run gateway| SB[(Supabase ecg_batches)]
+  SB -->|INSERT broadcast| CLD
   SIM --> ENG
   ESP --> ENG[EcgEngine<br/>ring buffers · pipeline · detector · metrics]
+  CLD --> ENG
   ENG -->|rAF sample window| CAN[Canvas ECG renderer]
   ENG -->|~4 Hz telemetry| ST[(zustand store)]
   ENG -->|beat events| HEART[three.js heart]
@@ -43,6 +56,7 @@ flowchart TB
 | Persistence | `src/storage` | IndexedDB sessions and chunked samples | compute metrics |
 | Reporting | `src/services` | CSV/PDF generation from stored sessions | mutate sessions |
 | Bridge | `server/src` | Device transport, validation, discovery, broadcast | process signals, persist data |
+| Cloud transport | `src/data/supabaseSource.ts`, `src/lib/supabase.ts` | Subscribe to `ecg_batches` via Realtime, validate rows, emit `EcgBatch` | write rows, filter signals, hold a secret key |
 | Firmware | `firmware/` | Timed ADC acquisition + batch transport | block on network in the sampling path |
 
 ## 3. Data contracts
